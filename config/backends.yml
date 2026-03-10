@@ -3,13 +3,13 @@ backends:
   user-service:
     name: User Service
     instances:
-      - url: http://localhost:3001
+      - url: ${USER_SERVICE_1_URL}
         weight: 1
         healthy: true
-      - url: http://localhost:3002
+      - url: ${USER_SERVICE_2_URL}
         weight: 1
         healthy: true
-      - url: http://localhost:3003
+      - url: ${USER_SERVICE_3_URL}
         weight: 1
         healthy: true
     healthCheck:
@@ -20,15 +20,15 @@ backends:
       method: GET
     loadBalancing:
       algorithm: round-robin       # round-robin, least-connections, weighted
-    
+
   # Order Service Configuration
   order-service:
     name: Order Service
     instances:
-      - url: http://localhost:4001
+      - url: ${ORDER_SERVICE_1_URL}
         weight: 2                  # Higher weight = more traffic
         healthy: true
-      - url: http://localhost:4002
+      - url: ${ORDER_SERVICE_2_URL}
         weight: 1
         healthy: true
     healthCheck:
@@ -39,15 +39,15 @@ backends:
       method: GET
     loadBalancing:
       algorithm: weighted          # Use weighted because different instance sizes
-    
+
   # Auth Service Configuration
   auth-service:
     name: Auth Service
     instances:
-      - url: http://localhost:5001
+      - url: ${AUTH_SERVICE_1_URL}
         weight: 1
         healthy: true
-      - url: http://localhost:5002
+      - url: ${AUTH_SERVICE_2_URL}
         weight: 1
         healthy: true
     healthCheck:

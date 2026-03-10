@@ -32,6 +32,13 @@ services:
       - REDIS_PORT=6379
       - RATE_LIMIT_ALGORITHM=token-bucket
       - LOG_LEVEL=info
+      - USER_SERVICE_1_URL=http://user-service-1:3001
+      - USER_SERVICE_2_URL=http://user-service-2:3002
+      - USER_SERVICE_3_URL=http://user-service-3:3003
+      - ORDER_SERVICE_1_URL=http://order-service-1:4001
+      - ORDER_SERVICE_2_URL=http://order-service-2:4002
+      - AUTH_SERVICE_1_URL=http://auth-service-1:5001
+      - AUTH_SERVICE_2_URL=http://auth-service-2:5002
     depends_on:
       redis:
         condition: service_healthy

@@ -48,7 +48,9 @@ class ConfigLoader {
       throw new Error(`Routes configuration not found: ${routesPath}`);
     }
 
-    const fileContents = fs.readFileSync(routesPath, 'utf8');
+    const raw = fs.readFileSync(routesPath, 'utf8');
+    // Expand ${ENV_VAR} placeholders from process.env
+    const fileContents = raw.replace(/\$\{([^}]+)\}/g, (_, k) => process.env[k] || `\${${k}}`);
     const config = yaml.load(fileContents);
     
     if (!config || !config.routes) {
@@ -69,7 +71,8 @@ class ConfigLoader {
       throw new Error(`Backends configuration not found: ${backendsPath}`);
     }
 
-    const fileContents = fs.readFileSync(backendsPath, 'utf8');
+    const raw = fs.readFileSync(backendsPath, 'utf8');
+    const fileContents = raw.replace(/\$\{([^}]+)\}/g, (_, k) => process.env[k] || `\${${k}}`);
     const config = yaml.load(fileContents);
     
     if (!config || !config.backends) {
