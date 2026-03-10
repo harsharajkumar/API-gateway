@@ -78,8 +78,8 @@ This starts 7 mock services:
 ### 4. Start the gateway
 
 ```bash
-npm run dev        # development (auto-reload)
-npm start          # production
+npm run dev       
+npm start         
 ```
 
 ### 5. Open the dashboard
@@ -112,54 +112,54 @@ cd docker && docker-compose up
 ```
 api-gateway-nodejs/
 ├── src/
-│   ├── server.js                      # Express app, graceful shutdown
+│   ├── server.js                     
 │   ├── config/
-│   │   └── configLoader.js            # YAML loader for routes + backends
+│   │   └── configLoader.js
 │   ├── routes/
-│   │   └── gateway.js                 # Main router: tracing, adaptive RL, proxy, all admin endpoints
+│   │   └── gateway.js                
 │   ├── middleware/
-│   │   ├── metrics.js                 # Prometheus counters / histograms / gauges
-│   │   ├── rateLimiter.js             # Rate-limiter factory (token-bucket / sliding-window)
-│   │   ├── tokenBucket.js             # Token bucket — Redis-backed
-│   │   ├── slidingWindow.js           # Sliding window — Redis-backed
-│   │   ├── circuitBreaker.js          # CLOSED / OPEN / HALF-OPEN state machine
-│   │   └── adaptiveRateLimiter.js     # EWMA + proportional controller (NEW)
+│   │   ├── metrics.js                
+│   │   ├── rateLimiter.js           
+│   │   ├── tokenBucket.js             
+│   │   ├── slidingWindow.js       
+│   │   ├── circuitBreaker.js        
+│   │   └── adaptiveRateLimiter.js   
 │   ├── tracing/
-│   │   └── tracer.js                  # Distributed tracing — TraceContext + Span (NEW)
+│   │   └── tracer.js                
 │   ├── slo/
-│   │   └── sloTracker.js              # SLO / error-budget / burn-rate tracker (NEW)
+│   │   └── sloTracker.js            
 │   ├── loadbalancer/
 │   │   ├── loadBalancerFactory.js
 │   │   ├── roundRobin.js
 │   │   ├── leastConnections.js
 │   │   └── weighted.js
 │   ├── proxy/
-│   │   └── proxyService.js            # Axios-based HTTP forwarder
+│   │   └── proxyService.js          
 │   ├── router/
-│   │   └── routeMatcher.js            # Path matching + path rewrite
+│   │   └── routeMatcher.js            
 │   ├── healthcheck/
-│   │   └── healthMonitor.js           # Background health polling
+│   │   └── healthMonitor.js         
 │   └── utils/
-│       ├── logger.js                  # Winston structured logger
-│       └── redisClient.js             # ioredis singleton
+│       ├── logger.js                  
+│       └── redisClient.js         
 ├── public/
-│   └── index.html                     # Admin dashboard (10 tabs, Chart.js, canvas flow viz)
+│   └── index.html                    
 ├── config/
-│   ├── routes.yml                     # Route definitions
-│   └── backends.yml                   # Backend instances + health check config
+│   ├── routes.yml                    
+│   └── backends.yml                   
 ├── mock-services/
-│   ├── user-service.js                # Mock REST service (GET/POST/PUT/DELETE users)
-│   ├── order-service.js               # Mock REST service (GET/POST orders)
-│   └── auth-service.js                # Mock REST service (login / logout / verify)
+│   ├── user-service.js                
+│   ├── order-service.js              
+│   └── auth-service.js               
 ├── scripts/
-│   ├── start-backends.sh              # Starts all 7 mock service instances
-│   └── test-gateway.sh                # Smoke test script
+│   ├── start-backends.sh          
+│   └── test-gateway.sh            
 ├── benchmarks/
-│   └── run-benchmark.sh               # autocannon load test
+│   └── run-benchmark.sh              
 ├── docker/
-│   ├── Dockerfile                     # Multi-stage Alpine image, non-root user
-│   ├── docker-compose.yml             # Full stack (gateway + Redis + mocks + Prometheus + Grafana)
-│   └── prometheus.yml                 # Prometheus scrape config
+│   ├── Dockerfile                   
+│   ├── docker-compose.yml        
+│   └── prometheus.yml               
 ├── docs/
 │   ├── WEEK1.md
 │   ├── WEEK2.md
