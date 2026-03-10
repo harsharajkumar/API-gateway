@@ -2,8 +2,6 @@
 
 A production-grade API Gateway built with Node.js and Express, featuring distributed request tracing, SLO/error-budget tracking, adaptive rate limiting, chaos engineering, live request flow visualization, and a full admin dashboard UI.
 
-> Built as a graduate-level systems engineering project demonstrating distributed systems patterns, feedback-control algorithms, and SRE best practices.
-
 ---
 
 ## Features
