@@ -1,0 +1,48 @@
+routes:
+  # User Service Routes
+  - id: user-service
+    path: /api/users
+    pathRewrite: /users            # /api/users/123 → /users/123 on backend
+    backend: user-service
+    methods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+    rateLimit: 200                 # Requests per minute
+    circuitBreaker: true
+    timeout: 30000                 # 30 seconds
+    
+  # Order Service Routes
+  - id: order-service
+    path: /api/orders
+    pathRewrite: /orders           # /api/orders/123 → /orders/123 on backend
+    backend: order-service
+    methods:
+      - GET
+      - POST
+    rateLimit: 100
+    circuitBreaker: true
+    timeout: 30000
+    
+  # Auth Service Routes
+  - id: auth-service
+    path: /api/auth
+    pathRewrite: true
+    backend: auth-service
+    methods:
+      - POST
+    rateLimit: 50                  # Lower limit for auth
+    circuitBreaker: false           # Don't break auth service
+    timeout: 10000                 # 10 seconds
+    
+  # Public API (no auth required)
+  - id: public-api
+    path: /api/public
+    pathRewrite: /users            # /api/public → /users on user-service (public read-only alias)
+    backend: user-service
+    methods:
+      - GET
+    rateLimit: 500                 # Higher limit for public
+    circuitBreaker: true
+    timeout: 15000

@@ -1,0 +1,60 @@
+backends:
+  # User Service Configuration
+  user-service:
+    name: User Service
+    instances:
+      - url: http://localhost:3001
+        weight: 1
+        healthy: true
+      - url: http://localhost:3002
+        weight: 1
+        healthy: true
+      - url: http://localhost:3003
+        weight: 1
+        healthy: true
+    healthCheck:
+      enabled: true
+      path: /health
+      interval: 10000              # Check every 10 seconds
+      timeout: 3000                # 3 second timeout
+      method: GET
+    loadBalancing:
+      algorithm: round-robin       # round-robin, least-connections, weighted
+    
+  # Order Service Configuration
+  order-service:
+    name: Order Service
+    instances:
+      - url: http://localhost:4001
+        weight: 2                  # Higher weight = more traffic
+        healthy: true
+      - url: http://localhost:4002
+        weight: 1
+        healthy: true
+    healthCheck:
+      enabled: true
+      path: /health
+      interval: 15000
+      timeout: 3000
+      method: GET
+    loadBalancing:
+      algorithm: weighted          # Use weighted because different instance sizes
+    
+  # Auth Service Configuration
+  auth-service:
+    name: Auth Service
+    instances:
+      - url: http://localhost:5001
+        weight: 1
+        healthy: true
+      - url: http://localhost:5002
+        weight: 1
+        healthy: true
+    healthCheck:
+      enabled: true
+      path: /health
+      interval: 10000
+      timeout: 2000
+      method: GET
+    loadBalancing:
+      algorithm: least-connections # Auth may have long-lived connections

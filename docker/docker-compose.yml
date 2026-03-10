@@ -1,0 +1,181 @@
+version: '3.8'
+
+services:
+  # Redis for rate limiting and distributed state
+  redis:
+    image: redis:7-alpine
+    container_name: gateway-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # API Gateway
+  gateway:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: api-gateway
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - RATE_LIMIT_ALGORITHM=token-bucket
+      - LOG_LEVEL=info
+    depends_on:
+      redis:
+        condition: service_healthy
+      user-service-1:
+        condition: service_started
+      user-service-2:
+        condition: service_started
+      user-service-3:
+        condition: service_started
+      order-service-1:
+        condition: service_started
+      order-service-2:
+        condition: service_started
+      auth-service-1:
+        condition: service_started
+      auth-service-2:
+        condition: service_started
+    restart: unless-stopped
+
+  # Mock User Service - Instance 1
+  user-service-1:
+    image: node:18-alpine
+    container_name: user-service-1
+    working_dir: /app
+    volumes:
+      - ../mock-services:/app
+    command: node user-service.js 3001
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+
+  # Mock User Service - Instance 2
+  user-service-2:
+    image: node:18-alpine
+    container_name: user-service-2
+    working_dir: /app
+    volumes:
+      - ../mock-services:/app
+    command: node user-service.js 3002
+    ports:
+      - "3002:3002"
+    environment:
+      - PORT=3002
+
+  # Mock User Service - Instance 3
+  user-service-3:
+    image: node:18-alpine
+    container_name: user-service-3
+    working_dir: /app
+    volumes:
+      - ../mock-services:/app
+    command: node user-service.js 3003
+    ports:
+      - "3003:3003"
+    environment:
+      - PORT=3003
+
+  # Mock Order Service - Instance 1
+  order-service-1:
+    image: node:18-alpine
+    container_name: order-service-1
+    working_dir: /app
+    volumes:
+      - ../mock-services:/app
+    command: node order-service.js 4001
+    ports:
+      - "4001:4001"
+    environment:
+      - PORT=4001
+
+  # Mock Order Service - Instance 2
+  order-service-2:
+    image: node:18-alpine
+    container_name: order-service-2
+    working_dir: /app
+    volumes:
+      - ../mock-services:/app
+    command: node order-service.js 4002
+    ports:
+      - "4002:4002"
+    environment:
+      - PORT=4002
+
+  # Mock Auth Service - Instance 1
+  auth-service-1:
+    image: node:18-alpine
+    container_name: auth-service-1
+    working_dir: /app
+    volumes:
+      - ../mock-services:/app
+    command: node auth-service.js 5001
+    ports:
+      - "5001:5001"
+    environment:
+      - PORT=5001
+
+  # Mock Auth Service - Instance 2
+  auth-service-2:
+    image: node:18-alpine
+    container_name: auth-service-2
+    working_dir: /app
+    volumes:
+      - ../mock-services:/app
+    command: node auth-service.js 5002
+    ports:
+      - "5002:5002"
+    environment:
+      - PORT=5002
+
+  # Prometheus for metrics
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: gateway-prometheus
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    depends_on:
+      - gateway
+
+  # Grafana for visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: gateway-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
+volumes:
+  redis-data:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  default:
+    name: gateway-network

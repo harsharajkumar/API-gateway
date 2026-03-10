@@ -1,0 +1,1667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+  <title>API Gateway — Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #0d0f18;
+      --surface: #151822;
+      --s2:      #1c1f2e;
+      --border:  #272b40;
+      --text:    #e2e8f0;
+      --muted:   #7a84a6;
+      --green:   #4ade80;
+      --red:     #f87171;
+      --yellow:  #fbbf24;
+      --blue:    #60a5fa;
+      --purple:  #a78bfa;
+      --cyan:    #22d3ee;
+      --accent:  #6366f1;
+    }
+
+    body { background:var(--bg); color:var(--text); font-family:'Segoe UI',system-ui,sans-serif; font-size:13px; line-height:1.5; }
+
+    /* header */
+    header {
+      background:var(--surface); border-bottom:1px solid var(--border);
+      height:56px; padding:0 24px;
+      display:flex; align-items:center; justify-content:space-between;
+      position:sticky; top:0; z-index:200;
+    }
+    .logo { display:flex; align-items:center; gap:10px; font-weight:700; font-size:15px; }
+    .logo-icon { width:30px;height:30px; background:linear-gradient(135deg,var(--accent),var(--purple)); border-radius:8px; display:flex;align-items:center;justify-content:center; font-size:15px; }
+    .header-right { display:flex;align-items:center;gap:14px; }
+
+    .pill { display:flex;align-items:center;gap:6px; padding:3px 11px; border-radius:20px; font-size:11px;font-weight:600; }
+    .pill.online  { background:rgba(74,222,128,.12); border:1px solid rgba(74,222,128,.3); color:var(--green); }
+    .pill.offline { background:rgba(248,113,113,.12); border:1px solid rgba(248,113,113,.3); color:var(--red); }
+    .dot { width:7px;height:7px;border-radius:50%;background:currentColor; }
+    .dot.pulse { animation:pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1}50%{opacity:.35} }
+
+    .nav-tabs { display:flex;gap:2px; background:var(--s2); border:1px solid var(--border); border-radius:8px; padding:3px; }
+    .nav-tab { padding:4px 14px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:500; color:var(--muted); transition:all .15s; border:none; background:none; }
+    .nav-tab.active { background:var(--accent); color:#fff; }
+    .nav-tab:hover:not(.active) { color:var(--text); }
+    .last-update { font-size:11px; color:var(--muted); }
+
+    /* anomaly alert banner */
+    #anomaly-banner {
+      display:none; position:fixed; top:64px; left:50%; transform:translateX(-50%);
+      z-index:300; background:#2d1a1a; border:1px solid rgba(248,113,113,.5);
+      border-radius:10px; padding:10px 20px; font-size:12px; color:var(--red);
+      max-width:480px; text-align:center; box-shadow:0 4px 24px rgba(0,0,0,.4);
+      animation:slideDown .3s ease;
+    }
+    #anomaly-banner.show { display:block; }
+    @keyframes slideDown { from{opacity:0;top:56px} to{opacity:1;top:64px} }
+
+    /* layout */
+    main { max-width:1440px; margin:0 auto; padding:20px 24px; }
+    .page { display:none; }
+    .page.active { display:contents; }
+
+    /* stat row */
+    .stat-row { display:grid; grid-template-columns:repeat(6,1fr); gap:12px; margin-bottom:16px; }
+    @media(max-width:1100px){.stat-row{grid-template-columns:repeat(3,1fr)}}
+    @media(max-width:600px) {.stat-row{grid-template-columns:repeat(2,1fr)}}
+    .stat-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px 16px; }
+    .stat-label { font-size:11px;color:var(--muted);font-weight:500;margin-bottom:6px;text-transform:uppercase;letter-spacing:.6px; }
+    .stat-value { font-size:26px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums; }
+    .stat-sub   { font-size:11px;color:var(--muted);margin-top:4px; }
+
+    /* card */
+    .card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:18px 20px; margin-bottom:16px; }
+    .card-title { font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin-bottom:14px; display:flex;align-items:center;justify-content:space-between; }
+    .card-title span { color:var(--text);font-size:11px;text-transform:none;letter-spacing:0; }
+
+    /* grids */
+    .g2 { display:grid;grid-template-columns:1fr 1fr;gap:16px; }
+    .g3 { display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px; }
+    @media(max-width:1000px){.g2,.g3{grid-template-columns:1fr}}
+
+    .chart-wrap { position:relative; height:200px; }
+    .chart-wrap.tall { height:260px; }
+
+    /* bar */
+    .bar-wrap { background:var(--s2);border-radius:4px;height:5px;overflow:hidden;margin-top:5px; }
+    .bar { height:100%;border-radius:4px;transition:width .6s ease; }
+
+    /* backend health */
+    .backend-block { margin-bottom:16px; }
+    .backend-block:last-child{margin-bottom:0}
+    .backend-hdr { display:flex;align-items:center;justify-content:space-between;margin-bottom:8px; }
+    .backend-hdr-name { font-weight:600;font-size:13px; }
+    .algo-badge { font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;background:var(--s2);border:1px solid var(--border);color:var(--muted); }
+    .instance-row { display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--s2);border:1px solid var(--border);border-radius:8px;margin-bottom:5px;transition:border-color .3s; }
+    .inst-dot { width:8px;height:8px;border-radius:50%;flex-shrink:0;transition:background .3s; }
+    .inst-dot.up   { background:var(--green); }
+    .inst-dot.down { background:var(--red);animation:pulse 1.5s infinite; }
+    .inst-url  { flex:1;font-family:monospace;font-size:12px; }
+    .inst-meta { font-size:11px;color:var(--muted); }
+    .inst-badge { font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px; }
+    .inst-badge.up   { background:rgba(74,222,128,.1);color:var(--green);border:1px solid rgba(74,222,128,.3); }
+    .inst-badge.down { background:rgba(248,113,113,.1);color:var(--red);border:1px solid rgba(248,113,113,.3); }
+
+    /* circuit breaker */
+    .cb-row { display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--s2);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;transition:all .3s; }
+    .cb-row:last-child{margin-bottom:0}
+    .cb-name { font-weight:600;font-size:13px;flex:1; }
+    .cb-meta { font-size:11px;color:var(--muted); }
+    .cb-state { font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;min-width:80px;text-align:center;transition:all .3s; }
+    .cb-state.CLOSED    { background:rgba(74,222,128,.1);color:var(--green);border:1px solid rgba(74,222,128,.3); }
+    .cb-state.OPEN      { background:rgba(248,113,113,.1);color:var(--red);border:1px solid rgba(248,113,113,.3); }
+    .cb-state.HALF_OPEN { background:rgba(251,191,36,.1);color:var(--yellow);border:1px solid rgba(251,191,36,.3); }
+
+    /* table */
+    table{width:100%;border-collapse:collapse}
+    th{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;text-align:left;padding:7px 12px;border-bottom:1px solid var(--border)}
+    td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:12px;vertical-align:middle}
+    tr:last-child td{border-bottom:none}
+    tr:hover td{background:var(--s2)}
+    .mono{font-family:monospace;background:var(--s2);padding:2px 6px;border-radius:4px;font-size:11px}
+    .method-badge{font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;margin-right:3px;display:inline-block}
+    .method-GET    {background:rgba(96,165,250,.15);color:var(--blue)}
+    .method-POST   {background:rgba(74,222,128,.15);color:var(--green)}
+    .method-PUT    {background:rgba(251,191,36,.15);color:var(--yellow)}
+    .method-DELETE {background:rgba(248,113,113,.15);color:var(--red)}
+
+    /* try it */
+    .try-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+    .try-item{background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:12px}
+    .try-item label{display:block;font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.6px;margin-bottom:7px}
+    .try-row{display:flex;gap:6px}
+    .try-select,.try-input{background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 9px;font-size:12px;outline:none}
+    .try-select:focus,.try-input:focus{border-color:var(--accent)}
+    .try-select{width:78px}
+    .try-input{flex:1;font-family:monospace}
+    .btn{border:none;border-radius:6px;padding:5px 13px;font-size:12px;font-weight:600;cursor:pointer;transition:opacity .15s}
+    .btn:hover{opacity:.82}
+    .btn-accent{background:var(--accent);color:#fff}
+    .btn-red{background:rgba(248,113,113,.2);color:var(--red);border:1px solid rgba(248,113,113,.4)}
+    .btn-green{background:rgba(74,222,128,.2);color:var(--green);border:1px solid rgba(74,222,128,.4)}
+    .btn-yellow{background:rgba(251,191,36,.2);color:var(--yellow);border:1px solid rgba(251,191,36,.4)}
+    .try-result{margin-top:8px;background:#090b10;border-radius:6px;padding:9px;font-family:monospace;font-size:11px;color:var(--muted);min-height:44px;max-height:130px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;line-height:1.6}
+    .try-body{display:block;width:100%;margin-top:6px;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 9px;font-size:11px;font-family:monospace;resize:vertical;outline:none}
+    .try-body:focus{border-color:var(--accent)}
+
+    /* log */
+    .log-feed{background:#090b10;border-radius:8px;border:1px solid var(--border);padding:10px 12px;height:200px;overflow-y:auto;font-family:monospace;font-size:11px;line-height:1.8}
+    .log-e{display:flex;gap:8px}
+    .log-time{color:var(--muted);flex-shrink:0}
+    .log-INFO {color:var(--blue);flex-shrink:0;min-width:38px}
+    .log-WARN {color:var(--yellow);flex-shrink:0;min-width:38px}
+    .log-ERROR{color:var(--red);flex-shrink:0;min-width:38px}
+    .log-CHAOS{color:var(--purple);flex-shrink:0;min-width:38px}
+    .log-msg{color:var(--text)}
+
+    /* flow canvas */
+    #flow-canvas { width:100%; height:420px; display:block; border-radius:10px; background:#090b12; border:1px solid var(--border); }
+
+    /* SLO */
+    .slo-card { background:var(--s2); border:1px solid var(--border); border-radius:10px; padding:16px 18px; }
+    .slo-card.passing { border-color:rgba(74,222,128,.4); }
+    .slo-card.failing  { border-color:rgba(248,113,113,.4); }
+    .slo-name   { font-size:12px;font-weight:700;margin-bottom:4px; }
+    .slo-desc   { font-size:11px;color:var(--muted);margin-bottom:12px; }
+    .slo-nums   { display:flex;align-items:baseline;gap:6px;margin-bottom:8px; }
+    .slo-current{ font-size:32px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1; }
+    .slo-target { font-size:12px;color:var(--muted); }
+    .slo-badge  { display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px; }
+    .slo-badge.pass { background:rgba(74,222,128,.1);color:var(--green);border:1px solid rgba(74,222,128,.3); }
+    .slo-badge.fail { background:rgba(248,113,113,.1);color:var(--red);  border:1px solid rgba(248,113,113,.3); }
+
+    /* traces */
+    .trace-row { display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;border-radius:6px;margin-bottom:2px; }
+    .trace-row:hover { background:var(--s2); }
+    .trace-row.selected { background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.3); }
+    .trace-status { width:8px;height:8px;border-radius:50%;flex-shrink:0; }
+    .trace-status.ok      { background:var(--green); }
+    .trace-status.warning { background:var(--yellow); }
+    .trace-status.error   { background:var(--red); }
+    .trace-method { font-size:10px;font-weight:700;min-width:36px; }
+    .trace-path   { font-family:monospace;font-size:11px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+    .trace-dur    { font-family:monospace;font-size:11px;color:var(--muted);min-width:52px;text-align:right; }
+    .trace-code   { font-size:10px;font-weight:700;min-width:28px;text-align:right; }
+
+    /* waterfall */
+    .wf-header   { display:grid;grid-template-columns:120px 1fr;gap:8px;align-items:center;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border); }
+    .wf-row      { display:grid;grid-template-columns:120px 1fr;gap:8px;align-items:center;margin-bottom:4px; }
+    .wf-label    { font-size:11px;color:var(--muted);text-align:right;padding-right:8px; }
+    .wf-track    { position:relative;height:20px;background:var(--s2);border-radius:4px;overflow:hidden; }
+    .wf-bar      { position:absolute;height:100%;border-radius:4px;display:flex;align-items:center;padding:0 5px;font-size:9px;font-weight:700;white-space:nowrap;overflow:hidden; }
+    .wf-bar.ok        { background:rgba(74,222,128,.35);color:var(--green); }
+    .wf-bar.error     { background:rgba(248,113,113,.35);color:var(--red); }
+    .wf-bar.warning   { background:rgba(251,191,36,.35);color:var(--yellow); }
+    .wf-bar.shed      { background:rgba(167,139,250,.35);color:var(--purple); }
+    .wf-bar.exceeded  { background:rgba(251,191,36,.35);color:var(--yellow); }
+    .wf-bar.running   { background:rgba(96,165,250,.35);color:var(--blue); }
+    .wf-bar.interrupted{background:rgba(120,120,140,.35);color:var(--muted); }
+
+    /* adaptive RL */
+    .arl-card { background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:16px 18px; }
+    .arl-name { font-weight:700;font-size:13px;margin-bottom:4px; }
+    .arl-pct-ring { width:80px;height:80px;margin:10px auto; }
+    .arl-status { font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;display:inline-block;margin-bottom:8px; }
+    .arl-status.ok       { background:rgba(74,222,128,.1);color:var(--green);border:1px solid rgba(74,222,128,.3); }
+    .arl-status.warning  { background:rgba(251,191,36,.1);color:var(--yellow);border:1px solid rgba(251,191,36,.3); }
+    .arl-status.critical { background:rgba(248,113,113,.1);color:var(--red);border:1px solid rgba(248,113,113,.3); }
+
+    /* chaos panel */
+    .chaos-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+    .chaos-card{background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:16px}
+    .chaos-card-title{font-weight:700;font-size:13px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+    .chaos-instance{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:7px;margin-bottom:6px}
+    .chaos-instance:last-child{margin-bottom:0}
+    .chaos-url{flex:1;font-family:monospace;font-size:11px;color:var(--muted)}
+    .chaos-status{font-size:10px;font-weight:700;min-width:28px;text-align:center}
+    .chaos-status.up{color:var(--green)}
+    .chaos-status.down{color:var(--red)}
+
+    .flood-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .flood-select{background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 9px;font-size:12px;outline:none;flex:1;min-width:120px}
+    .flood-count{width:70px;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 9px;font-size:12px;outline:none}
+    .flood-result{margin-top:10px;font-family:monospace;font-size:11px;line-height:1.8}
+
+    .anomaly-list{display:flex;flex-direction:column;gap:6px}
+    .anomaly-item{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:7px}
+    .anomaly-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+    .anomaly-dot.normal  {background:var(--green)}
+    .anomaly-dot.warning {background:var(--yellow)}
+    .anomaly-dot.critical{background:var(--red);animation:pulse 1s infinite}
+    .anomaly-label{flex:1;font-size:12px}
+    .anomaly-val{font-size:11px;color:var(--muted);font-family:monospace}
+
+    /* misc */
+    .empty{text-align:center;color:var(--muted);padding:28px;font-size:12px}
+    .spinner{display:inline-block;width:13px;height:13px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .tag{display:inline-block;font-size:10px;font-weight:600;padding:1px 7px;border-radius:10px;margin-left:6px}
+    .tag-new{background:rgba(99,102,241,.2);color:var(--accent);border:1px solid rgba(99,102,241,.4)}
+  </style>
+</head>
+<body>
+
+<!-- Anomaly Banner -->
+<div id="anomaly-banner">
+  <strong>⚠ Traffic Anomaly Detected</strong> — <span id="anomaly-msg"></span>
+</div>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">⚡</div>
+    API Gateway
+  </div>
+
+  <div class="nav-tabs">
+    <button class="nav-tab active" data-page="overview"  onclick="showPage(this)">Overview</button>
+    <button class="nav-tab"        data-page="metrics"   onclick="showPage(this)">Metrics</button>
+    <button class="nav-tab"        data-page="slo"       onclick="showPage(this)">SLO <span class="tag tag-new">NEW</span></button>
+    <button class="nav-tab"        data-page="traces"    onclick="showPage(this)">Traces <span class="tag tag-new">NEW</span></button>
+    <button class="nav-tab"        data-page="adaptive"  onclick="showPage(this)">Adaptive RL <span class="tag tag-new">NEW</span></button>
+    <button class="nav-tab"        data-page="flow"      onclick="showPage(this)">Live Flow</button>
+    <button class="nav-tab"        data-page="chaos"     onclick="showPage(this)">Chaos Lab</button>
+    <button class="nav-tab"        data-page="backends"  onclick="showPage(this)">Backends</button>
+    <button class="nav-tab"        data-page="routes"    onclick="showPage(this)">Routes</button>
+    <button class="nav-tab"        data-page="tryit"     onclick="showPage(this)">Try It</button>
+  </div>
+
+  <div class="header-right">
+    <div class="pill online" id="gw-pill"><div class="dot pulse"></div>Checking...</div>
+    <div class="last-update" id="last-update">—</div>
+  </div>
+</header>
+
+<main>
+
+  <!-- ════════════════ OVERVIEW ════════════════ -->
+  <div class="page active" id="page-overview">
+
+    <div class="stat-row">
+      <div class="stat-card">
+        <div class="stat-label">Total Requests</div>
+        <div class="stat-value" id="ov-total" style="color:var(--blue)">—</div>
+        <div class="stat-sub" id="ov-total-sub"></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Req / sec</div>
+        <div class="stat-value" id="ov-rps" style="color:var(--green)">—</div>
+        <div class="stat-sub">5s window</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Error Rate</div>
+        <div class="stat-value" id="ov-err" style="color:var(--red)">—</div>
+        <div class="stat-sub">4xx + 5xx</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Rate Limit Hits</div>
+        <div class="stat-value" id="ov-rl" style="color:var(--yellow)">—</div>
+        <div class="stat-sub">429 responses</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Uptime</div>
+        <div class="stat-value" id="ov-uptime" style="color:var(--purple)">—</div>
+        <div class="bar-wrap"><div class="bar" id="uptime-bar" style="background:var(--purple);width:0%"></div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Memory</div>
+        <div class="stat-value" id="ov-mem" style="color:var(--cyan)">—</div>
+        <div class="stat-sub">MB RSS</div>
+      </div>
+    </div>
+
+    <div class="g2">
+      <div class="card">
+        <div class="card-title">Requests per Second <span id="rps-live"></span></div>
+        <div class="chart-wrap"><canvas id="chart-rps"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Status Code Distribution</div>
+        <div class="chart-wrap"><canvas id="chart-status"></canvas></div>
+      </div>
+    </div>
+
+    <div class="g3">
+      <div class="card">
+        <div class="card-title">Traffic by Route</div>
+        <div class="chart-wrap"><canvas id="chart-routes"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Latency Distribution</div>
+        <div class="chart-wrap"><canvas id="chart-latency"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Anomaly Detection</div>
+        <div class="anomaly-list" id="anomaly-list"><div class="empty">Collecting data...</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Live Activity Log</div>
+      <div class="log-feed" id="log-feed"></div>
+    </div>
+
+  </div>
+
+  <!-- ════════════════ METRICS ════════════════ -->
+  <div class="page" id="page-metrics">
+
+    <div class="stat-row">
+      <div class="stat-card">
+        <div class="stat-label">2xx Success</div>
+        <div class="stat-value" id="m-2xx" style="color:var(--green)">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">3xx Redirect</div>
+        <div class="stat-value" id="m-3xx" style="color:var(--cyan)">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">4xx Client Err</div>
+        <div class="stat-value" id="m-4xx" style="color:var(--yellow)">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">5xx Server Err</div>
+        <div class="stat-value" id="m-5xx" style="color:var(--red)">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Rate Limit Hits</div>
+        <div class="stat-value" id="m-rl" style="color:var(--yellow)">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Active Conns</div>
+        <div class="stat-value" id="m-conns" style="color:var(--purple)">—</div>
+      </div>
+    </div>
+
+    <div class="g2">
+      <div class="card">
+        <div class="card-title">Requests Over Time (by status class)</div>
+        <div class="chart-wrap tall"><canvas id="chart-hist"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Latency Buckets (ms)</div>
+        <div class="chart-wrap tall"><canvas id="chart-lat2"></canvas></div>
+      </div>
+    </div>
+
+    <div class="g2">
+      <div class="card">
+        <div class="card-title">Active Connections per Backend</div>
+        <div class="chart-wrap"><canvas id="chart-conns"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Rate Limit Hits by Route</div>
+        <div class="chart-wrap"><canvas id="chart-rl2"></canvas></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ════════════════ SLO / ERROR BUDGET ════════════════ -->
+  <div class="page" id="page-slo">
+
+    <!-- Burn rate hero -->
+    <div class="card" style="margin-bottom:16px;border-color:rgba(99,102,241,.4)">
+      <div class="card-title">
+        Error Budget & Burn Rate
+        <span>Google SRE model — 30-day rolling window</span>
+      </div>
+      <div class="g3" style="margin-bottom:16px">
+        <div style="text-align:center;padding:20px 0">
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">Burn Rate</div>
+          <div id="slo-burn-value" style="font-size:52px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1;color:var(--green)">—</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:6px">× normal consumption</div>
+          <div id="slo-burn-label" style="font-size:12px;margin-top:8px;font-weight:600;color:var(--green)">—</div>
+        </div>
+        <div style="text-align:center;padding:20px 0">
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">Error Budget Remaining</div>
+          <div id="slo-budget-pct" style="font-size:52px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1;color:var(--blue)">—</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:6px">% of 30-day budget</div>
+          <div id="slo-budget-bar-wrap" style="margin:10px auto 0;max-width:160px">
+            <div style="background:var(--s2);border-radius:6px;height:8px;overflow:hidden">
+              <div id="slo-budget-bar" style="height:100%;border-radius:6px;background:var(--blue);transition:width .6s ease;width:0%"></div>
+            </div>
+          </div>
+        </div>
+        <div style="text-align:center;padding:20px 0">
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">Budget Exhaustion</div>
+          <div id="slo-exhaust" style="font-size:32px;font-weight:800;line-height:1;color:var(--purple)">—</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:6px">hours at current burn rate</div>
+          <div id="slo-exhaust-sub" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
+        </div>
+      </div>
+      <div id="slo-interpretation" style="font-size:12px;color:var(--muted);padding:10px 14px;background:var(--s2);border-radius:8px;border-left:3px solid var(--accent)"></div>
+    </div>
+
+    <!-- SLO status cards -->
+    <div id="slo-cards" class="g3" style="margin-bottom:16px">
+      <div class="empty">Collecting data...</div>
+    </div>
+
+    <!-- Multi-window table -->
+    <div class="card">
+      <div class="card-title">Availability Across Time Windows</div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr><th>Window</th><th>Total Requests</th><th>Errors</th><th>Availability</th><th>vs SLO Target</th></tr>
+          </thead>
+          <tbody id="slo-windows-tbody"><tr><td colspan="5" class="empty">Collecting data...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ════════════════ DISTRIBUTED TRACES ════════════════ -->
+  <div class="page" id="page-traces">
+
+    <!-- trace stats bar -->
+    <div class="stat-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
+      <div class="stat-card">
+        <div class="stat-label">Traced Requests</div>
+        <div class="stat-value" id="tr-count" style="color:var(--blue)">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">P99 Latency</div>
+        <div class="stat-value" id="tr-p99" style="color:var(--purple)">—</div>
+        <div class="stat-sub">ms</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">P95 Latency</div>
+        <div class="stat-value" id="tr-p95" style="color:var(--cyan)">—</div>
+        <div class="stat-sub">ms</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Error Rate</div>
+        <div class="stat-value" id="tr-err" style="color:var(--red)">—</div>
+        <div class="stat-sub">% of traced requests</div>
+      </div>
+    </div>
+
+    <div class="g2">
+      <!-- trace list -->
+      <div class="card" style="height:600px;overflow:hidden;display:flex;flex-direction:column">
+        <div class="card-title">Recent Traces <span id="trace-count-badge"></span></div>
+        <div id="trace-list" style="flex:1;overflow-y:auto;font-size:12px"></div>
+      </div>
+
+      <!-- waterfall detail -->
+      <div class="card" style="height:600px;overflow:hidden;display:flex;flex-direction:column">
+        <div class="card-title">Waterfall View <span id="waterfall-trace-id" style="font-family:monospace;font-size:10px;color:var(--muted)">click a trace →</span></div>
+        <div id="waterfall-content" style="flex:1;overflow-y:auto">
+          <div class="empty">Click a trace on the left to see the span waterfall</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ════════════════ ADAPTIVE RATE LIMITER ════════════════ -->
+  <div class="page" id="page-adaptive">
+
+    <div class="card" style="margin-bottom:16px;border-color:rgba(251,191,36,.3)">
+      <div class="card-title" style="color:var(--yellow)">
+        Adaptive Rate Limiter — Feedback Control System
+        <span>PID-like controller adjusting traffic based on backend P99 latency (EWMA)</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;font-size:12px;color:var(--muted)">
+        <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:12px">
+          <div style="font-weight:600;color:var(--text);margin-bottom:4px">Target P99</div>
+          <div id="arl-target" style="font-size:22px;font-weight:700;color:var(--green)">80ms</div>
+          <div>Start reducing above this</div>
+        </div>
+        <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:12px">
+          <div style="font-weight:600;color:var(--text);margin-bottom:4px">Warn Threshold</div>
+          <div style="font-size:22px;font-weight:700;color:var(--yellow)">150ms</div>
+          <div>Proportional reduction zone</div>
+        </div>
+        <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:12px">
+          <div style="font-weight:600;color:var(--text);margin-bottom:4px">Critical Threshold</div>
+          <div style="font-size:22px;font-weight:700;color:var(--red)">300ms</div>
+          <div>Emergency step-down</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- per-backend multiplier cards -->
+    <div id="arl-backends" class="g3" style="margin-bottom:16px">
+      <div class="empty">No backend data yet — send requests to see adaptive control in action</div>
+    </div>
+
+    <!-- history charts -->
+    <div id="arl-charts" class="g3" style="margin-bottom:16px"></div>
+
+    <!-- change log -->
+    <div class="card">
+      <div class="card-title">Controller Change Log <span>significant multiplier shifts (≥5%)</span></div>
+      <div id="arl-changelog" class="log-feed"></div>
+    </div>
+
+  </div>
+
+  <!-- ════════════════ LIVE FLOW ════════════════ -->
+  <div class="page" id="page-flow">
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-title">
+        Live Request Flow Visualization
+        <span>Animated packets show real-time traffic through the gateway</span>
+      </div>
+      <canvas id="flow-canvas"></canvas>
+      <div style="display:flex;gap:16px;margin-top:12px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)">
+          <div style="width:10px;height:10px;border-radius:50%;background:var(--green)"></div>
+          2xx Success
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)">
+          <div style="width:10px;height:10px;border-radius:50%;background:var(--yellow)"></div>
+          4xx Client Error
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)">
+          <div style="width:10px;height:10px;border-radius:50%;background:var(--red)"></div>
+          5xx Server Error
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)">
+          <div style="width:10px;height:10px;border-radius:50%;background:var(--blue)"></div>
+          In-flight
+        </div>
+        <div style="margin-left:auto;font-size:11px;color:var(--muted)">
+          Spawning <span id="flow-rps-label" style="color:var(--text);font-weight:600">0</span> particles/sec based on live traffic
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════ CHAOS LAB ════════════════ -->
+  <div class="page" id="page-chaos">
+
+    <div class="card" style="margin-bottom:16px;border-color:rgba(248,113,113,.3)">
+      <div class="card-title" style="color:var(--red)">
+        ⚠ Chaos Engineering Lab
+        <span>Simulate failures and observe how the gateway responds</span>
+      </div>
+
+      <!-- instance kill/heal -->
+      <div style="margin-bottom:20px">
+        <div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px">Backend Instance Control</div>
+        <div class="chaos-grid" id="chaos-instances"><div class="empty">Loading instances...</div></div>
+      </div>
+
+      <!-- flood test -->
+      <div style="border-top:1px solid var(--border);padding-top:20px;margin-bottom:20px">
+        <div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px">Flood Test — Trigger Rate Limiter</div>
+        <div class="flood-row">
+          <select class="flood-select" id="flood-path">
+            <option value="/api/users">GET /api/users</option>
+            <option value="/api/orders">GET /api/orders</option>
+            <option value="/api/auth">POST /api/auth</option>
+          </select>
+          <input class="flood-count" type="number" id="flood-count" value="30" min="1" max="100" />
+          <span style="font-size:11px;color:var(--muted)">requests</span>
+          <button class="btn btn-yellow" onclick="runFlood()">⚡ Flood</button>
+          <button class="btn btn-accent" onclick="runFlood(5)">Quick (5)</button>
+        </div>
+        <div class="flood-result" id="flood-result" style="color:var(--muted)">Results will appear here after flood.</div>
+      </div>
+
+      <!-- reset all -->
+      <div style="border-top:1px solid var(--border);padding-top:20px">
+        <div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px">Reset</div>
+        <button class="btn btn-green" onclick="healAll()">✓ Heal All Instances</button>
+        <span style="font-size:11px;color:var(--muted);margin-left:12px">Restores all killed instances to healthy state</span>
+      </div>
+    </div>
+
+    <!-- chaos log -->
+    <div class="card">
+      <div class="card-title">Chaos Event Log</div>
+      <div class="log-feed" id="chaos-log"></div>
+    </div>
+
+  </div>
+
+  <!-- ════════════════ BACKENDS ════════════════ -->
+  <div class="page" id="page-backends">
+    <div class="g2">
+      <div class="card">
+        <div class="card-title">Backend Health</div>
+        <div id="backend-health-list"><div class="empty">Loading...</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Circuit Breakers</div>
+        <div id="cb-list"><div class="empty">Loading...</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════ ROUTES ════════════════ -->
+  <div class="page" id="page-routes">
+    <div class="card">
+      <div class="card-title">Route Configuration</div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr><th>ID</th><th>Path</th><th>Backend</th><th>Methods</th><th>Rate Limit</th><th>Circuit Breaker</th><th>Timeout</th></tr>
+          </thead>
+          <tbody id="routes-tbody"><tr><td colspan="7" class="empty">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════ TRY IT ════════════════ -->
+  <div class="page" id="page-tryit">
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-title">Live API Tester</div>
+      <div class="try-grid" id="try-grid"><div class="empty">Loading routes...</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Request Log</div>
+      <div class="log-feed" id="try-log"></div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ══════════════════════════════════════════
+// CHART DEFAULTS
+// ══════════════════════════════════════════
+Chart.defaults.color = '#7a84a6';
+Chart.defaults.borderColor = '#272b40';
+Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
+Chart.defaults.font.size = 11;
+
+const C = { GREEN:'#4ade80', RED:'#f87171', YELLOW:'#fbbf24', BLUE:'#60a5fa', PURPLE:'#a78bfa', CYAN:'#22d3ee', ACCENT:'#6366f1' };
+const MAX_PTS = 30;
+
+function mkChart(id, type, data, opts={}) {
+  const ctx = document.getElementById(id)?.getContext('2d');
+  if (!ctx) return null;
+  return new Chart(ctx, { type, data, options:{ responsive:true, maintainAspectRatio:false, ...opts } });
+}
+
+// overview charts
+const rpsData=[], rpsLabels=[];
+const rpsChart = mkChart('chart-rps','line',
+  { labels:rpsLabels, datasets:[{label:'req/s',data:rpsData,borderColor:C.GREEN,backgroundColor:'rgba(74,222,128,.07)',tension:.4,fill:true,pointRadius:2}] },
+  { plugins:{legend:{display:false}}, scales:{x:{ticks:{maxTicksLimit:6}},y:{beginAtZero:true}} }
+);
+
+const statusChart = mkChart('chart-status','doughnut',
+  { labels:['2xx','3xx','4xx','5xx'], datasets:[{data:[0,0,0,0],backgroundColor:[C.GREEN,C.CYAN,C.YELLOW,C.RED],borderWidth:0}] },
+  { plugins:{legend:{position:'bottom'}}, cutout:'65%' }
+);
+
+const routesChart = mkChart('chart-routes','bar',
+  { labels:[], datasets:[{label:'Requests',data:[],backgroundColor:C.ACCENT+'cc'}] },
+  { plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}}, indexAxis:'y' }
+);
+
+const latencyChart = mkChart('chart-latency','bar',
+  { labels:[], datasets:[{label:'Count',data:[],backgroundColor:C.BLUE+'bb'}] },
+  { plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}} }
+);
+
+// metrics page charts
+const hist2xx=[],hist4xx=[],hist5xx=[],histLabels=[];
+const histChart = mkChart('chart-hist','line',
+  { labels:histLabels, datasets:[
+    {label:'2xx',data:hist2xx,borderColor:C.GREEN, backgroundColor:'rgba(74,222,128,.05)',tension:.4,fill:true,pointRadius:2},
+    {label:'4xx',data:hist4xx,borderColor:C.YELLOW,backgroundColor:'rgba(251,191,36,.05)',tension:.4,fill:true,pointRadius:2},
+    {label:'5xx',data:hist5xx,borderColor:C.RED,   backgroundColor:'rgba(248,113,113,.05)',tension:.4,fill:true,pointRadius:2}
+  ] },
+  { plugins:{legend:{position:'bottom'}}, scales:{x:{ticks:{maxTicksLimit:6}},y:{beginAtZero:true}} }
+);
+const lat2Chart   = mkChart('chart-lat2','bar', {labels:[],datasets:[{label:'Count',data:[],backgroundColor:C.PURPLE+'bb'}]}, {plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}}});
+const connsChart  = mkChart('chart-conns','bar', {labels:[],datasets:[{label:'Connections',data:[],backgroundColor:C.CYAN+'bb'}]}, {plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}}});
+const rl2Chart    = mkChart('chart-rl2','bar',   {labels:[],datasets:[{label:'Hits',data:[],backgroundColor:C.YELLOW+'bb'}]}, {plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}},indexAxis:'y'});
+
+// ══════════════════════════════════════════
+// LIVE FLOW VISUALIZATION
+// ══════════════════════════════════════════
+class FlowViz {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.ctx    = canvas.getContext('2d');
+    this.particles = [];
+    this.nodes     = {};
+    this.running   = true;
+    this.resize();
+    window.addEventListener('resize', () => this.resize());
+    this.loop();
+  }
+
+  resize() {
+    const dpr = window.devicePixelRatio || 1;
+    const w = this.canvas.offsetWidth;
+    const h = this.canvas.offsetHeight;
+    this.canvas.width  = w * dpr;
+    this.canvas.height = h * dpr;
+    this.ctx.scale(dpr, dpr);
+    this.W = w; this.H = h;
+  }
+
+  setTopology(backends, cbData) {
+    const W = this.W, H = this.H;
+    const nodes = {};
+    nodes.__client  = { x:W/2,           y:H*0.06,  label:'Internet / Client', color:C.BLUE,   type:'client' };
+    nodes.__gateway = { x:W/2,           y:H*0.32,  label:'API Gateway',       color:C.ACCENT, type:'gateway', cbData };
+
+    const count = backends.length;
+    backends.forEach((b, i) => {
+      const x = (W / (count + 1)) * (i + 1);
+      const cbState = cbData?.[b.id || b.name?.toLowerCase().replace(' ','-')]?.state || 'CLOSED';
+      nodes[b.name || b.id || i] = {
+        x, y: H * 0.72,
+        label: b.name || b.id,
+        color: cbState === 'OPEN' ? C.RED : cbState === 'HALF_OPEN' ? C.YELLOW : C.PURPLE,
+        instances: b.instances || [],
+        type: 'backend',
+        cbState
+      };
+    });
+    this.nodes = nodes;
+  }
+
+  spawn(rps, statusDist) {
+    if (!this.nodes.__gateway) return;
+    const backendKeys = Object.keys(this.nodes).filter(k => !k.startsWith('__'));
+    if (!backendKeys.length) return;
+
+    const target = this.nodes[backendKeys[Math.floor(Math.random() * backendKeys.length)]];
+    const gw     = this.nodes.__gateway;
+    const client = this.nodes.__client;
+
+    // pick color by status distribution
+    const total = Object.values(statusDist).reduce((a,b)=>a+b,0) || 1;
+    const rand  = Math.random() * total;
+    let acc = 0, color = C.BLUE;
+    for (const [k,v] of Object.entries(statusDist)) {
+      acc += v;
+      if (rand <= acc) {
+        if (k==='2xx') color = C.GREEN;
+        else if (k==='3xx') color = C.CYAN;
+        else if (k==='4xx') color = C.YELLOW;
+        else color = C.RED;
+        break;
+      }
+    }
+
+    this.particles.push({
+      pts: [
+        { x:client.x,  y:client.y  },
+        { x:gw.x,      y:gw.y      },
+        { x:target.x,  y:target.y  },
+        { x:gw.x,      y:gw.y      },
+        { x:client.x,  y:client.y  }
+      ],
+      t: 0,
+      speed: 0.006 + Math.random() * 0.005,
+      color,
+      r: 3.5
+    });
+  }
+
+  draw() {
+    const ctx = this.ctx;
+    const W = this.W, H = this.H;
+    ctx.clearRect(0, 0, W, H);
+
+    const gw = this.nodes.__gateway;
+    const cl = this.nodes.__client;
+    if (!gw || !cl) return;
+
+    // grid lines (subtle)
+    ctx.strokeStyle = 'rgba(39,43,64,.4)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < W; x += 60) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+    for (let y = 0; y < H; y += 60) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y);  ctx.stroke(); }
+
+    // connection lines (glow on active)
+    ctx.lineWidth = 1.5;
+    Object.entries(this.nodes).forEach(([k, node]) => {
+      if (k.startsWith('__')) return;
+      const gradient = ctx.createLinearGradient(gw.x, gw.y, node.x, node.y);
+      gradient.addColorStop(0, 'rgba(99,102,241,.35)');
+      gradient.addColorStop(1, node.cbState === 'OPEN' ? 'rgba(248,113,113,.35)' : 'rgba(167,139,250,.35)');
+      ctx.strokeStyle = gradient;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.moveTo(gw.x, gw.y); ctx.lineTo(node.x, node.y); ctx.stroke();
+      ctx.setLineDash([]);
+    });
+
+    // client → gateway line
+    ctx.strokeStyle = 'rgba(96,165,250,.3)';
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(cl.x, cl.y); ctx.lineTo(gw.x, gw.y); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // draw particles first (under nodes)
+    this.particles.forEach(p => {
+      const pos = this._pos(p.pts, p.t);
+      if (!pos) return;
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, p.r, 0, Math.PI*2);
+      ctx.fillStyle = p.color;
+      ctx.shadowColor = p.color;
+      ctx.shadowBlur = 10;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    });
+
+    // draw nodes
+    Object.entries(this.nodes).forEach(([k, n]) => {
+      if (n.type === 'client' || n.type === 'gateway') {
+        this._drawBox(n.x, n.y, n.label, n.color, n.type === 'gateway' ? 120 : 140, 38);
+      } else {
+        this._drawBox(n.x, n.y, n.label, n.color, 110, 32);
+        // instance dots below
+        const insts = n.instances || [];
+        insts.forEach((inst, i) => {
+          const ix = n.x + (i - (insts.length-1)/2) * 24;
+          const iy = n.y + 30;
+          ctx.beginPath();
+          ctx.arc(ix, iy, 5, 0, Math.PI*2);
+          const up = inst.healthy !== false;
+          ctx.fillStyle = up ? 'rgba(74,222,128,.15)' : 'rgba(248,113,113,.15)';
+          ctx.fill();
+          ctx.strokeStyle = up ? C.GREEN : C.RED;
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        });
+        // CB state badge
+        if (n.cbState !== 'CLOSED') {
+          ctx.fillStyle = n.cbState === 'OPEN' ? C.RED : C.YELLOW;
+          ctx.font = 'bold 9px Segoe UI, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(n.cbState, n.x, n.y - 26);
+        }
+      }
+    });
+  }
+
+  _drawBox(cx, cy, label, color, w=120, h=36) {
+    const ctx = this.ctx;
+    ctx.fillStyle   = '#1a1d2e';
+    ctx.strokeStyle = color;
+    ctx.lineWidth   = 2;
+    ctx.shadowColor = color;
+    ctx.shadowBlur  = 6;
+    ctx.beginPath();
+    ctx.roundRect(cx-w/2, cy-h/2, w, h, 8);
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = color;
+    ctx.font = 'bold 11px Segoe UI, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, cx, cy);
+  }
+
+  _pos(pts, t) {
+    const seg = t * (pts.length - 1);
+    const i   = Math.min(Math.floor(seg), pts.length - 2);
+    const f   = seg - i;
+    const a   = pts[i], b = pts[i+1];
+    if (!a || !b) return null;
+    return { x: a.x + (b.x-a.x)*f, y: a.y + (b.y-a.y)*f };
+  }
+
+  loop() {
+    if (!this.running) return;
+    this.draw();
+    this.particles = this.particles.map(p => ({...p, t: p.t + p.speed})).filter(p => p.t < 1);
+    requestAnimationFrame(() => this.loop());
+  }
+
+  destroy() { this.running = false; }
+}
+
+const flowViz = new FlowViz(document.getElementById('flow-canvas'));
+
+// ══════════════════════════════════════════
+// ANOMALY DETECTION  (simple moving average)
+// ══════════════════════════════════════════
+const rpsWindow = [];   // last N rps samples
+const WINDOW = 8;       // samples to average
+
+function detectAnomalies(rps, errorPct, rateLimitHits) {
+  rpsWindow.push(rps);
+  if (rpsWindow.length > WINDOW) rpsWindow.shift();
+  if (rpsWindow.length < 3) return [];
+
+  const avg  = rpsWindow.slice(0,-1).reduce((a,b)=>a+b,0) / (rpsWindow.length-1);
+  const items = [];
+
+  // traffic spike: current > 2.5× average
+  if (avg > 0.1 && rps > avg * 2.5) {
+    items.push({ level:'critical', label:'Traffic spike detected', val:`${rps} req/s (avg ${avg.toFixed(1)})` });
+    showBanner(`Traffic spike — ${rps} req/s is ${(rps/avg).toFixed(1)}× above normal`);
+  }
+  // traffic drop: current < 0.1× average (possible outage)
+  else if (avg > 0.5 && rps < avg * 0.1) {
+    items.push({ level:'warning', label:'Traffic drop — possible outage', val:`${rps} req/s (avg ${avg.toFixed(1)})` });
+    showBanner(`Traffic dropped to ${rps} req/s — possible service outage`);
+  }
+  else {
+    hideBanner();
+    items.push({ level:'normal', label:'Traffic nominal', val:`${rps} req/s (avg ${avg.toFixed(1)})` });
+  }
+
+  // high error rate
+  if (errorPct > 10) {
+    items.push({ level: errorPct > 25 ? 'critical':'warning', label:'Elevated error rate', val:`${errorPct}%` });
+  } else {
+    items.push({ level:'normal', label:'Error rate normal', val:`${errorPct}%` });
+  }
+
+  // rate limit threshold
+  if (rateLimitHits > 50) {
+    items.push({ level:'warning', label:'High rate-limit activity', val:`${rateLimitHits} hits` });
+  } else {
+    items.push({ level:'normal', label:'Rate limiting nominal', val:`${rateLimitHits} hits` });
+  }
+
+  return items;
+}
+
+function renderAnomalies(items) {
+  const el = document.getElementById('anomaly-list');
+  if (!el || !items.length) return;
+  el.innerHTML = items.map(a => `
+    <div class="anomaly-item">
+      <div class="anomaly-dot ${a.level}"></div>
+      <span class="anomaly-label">${esc(a.label)}</span>
+      <span class="anomaly-val">${esc(a.val)}</span>
+    </div>`).join('');
+}
+
+let bannerTimer = null;
+function showBanner(msg) {
+  document.getElementById('anomaly-msg').textContent = msg;
+  document.getElementById('anomaly-banner').classList.add('show');
+  clearTimeout(bannerTimer);
+  bannerTimer = setTimeout(hideBanner, 8000);
+}
+function hideBanner() {
+  document.getElementById('anomaly-banner').classList.remove('show');
+}
+
+// ══════════════════════════════════════════
+// CHAOS PANEL
+// ══════════════════════════════════════════
+let chaosInstancesData = [];
+
+function renderChaosInstances(stats) {
+  const el = document.getElementById('chaos-instances');
+  if (!stats?.backends?.length) { el.innerHTML = '<div class="empty">No backends</div>'; return; }
+
+  chaosInstancesData = stats.backends.flatMap(b =>
+    (b.instances||[]).map(i => ({ backendName: b.id || b.name, ...i }))
+  );
+
+  el.innerHTML = `<div class="chaos-grid">${
+    stats.backends.map(b => `
+      <div class="chaos-card">
+        <div class="chaos-card-title">
+          <span style="color:var(--purple)">▣</span> ${esc(b.name)}
+        </div>
+        ${(b.instances||[]).map(inst => {
+          const up = inst.healthy !== false;
+          const id = encodeURIComponent(inst.url);
+          return `
+          <div class="chaos-instance" id="ci-${id}">
+            <div class="inst-dot ${up?'up':'down'}"></div>
+            <span class="chaos-url">${esc(inst.url)}</span>
+            <span class="chaos-status ${up?'up':'down'}">${up?'UP':'DOWN'}</span>
+            ${up
+              ? `<button class="btn btn-red"   onclick="chaosKill('${esc(b.name)}','${esc(inst.url)}')">Kill</button>`
+              : `<button class="btn btn-green" onclick="chaosHeal('${esc(b.name)}','${esc(inst.url)}')">Heal</button>`
+            }
+          </div>`;
+        }).join('')}
+      </div>`
+    ).join('')
+  }</div>`;
+}
+
+async function chaosKill(backendName, url) {
+  const r = await postJSON('/_admin/chaos/instance', { backendName, url, healthy: false });
+  if (r?.ok) {
+    addChaosLog(`KILL ${url} (${backendName}) → UNHEALTHY`);
+    addLog('WARN', `Chaos: killed ${url}`);
+  }
+}
+
+async function chaosHeal(backendName, url) {
+  const r = await postJSON('/_admin/chaos/instance', { backendName, url, healthy: true });
+  if (r?.ok) {
+    addChaosLog(`HEAL ${url} (${backendName}) → HEALTHY`);
+    addLog('INFO', `Chaos: healed ${url}`);
+  }
+}
+
+async function healAll() {
+  const tasks = chaosInstancesData.map(i => postJSON('/_admin/chaos/instance', { backendName: i.backendName, url: i.url, healthy: true }));
+  await Promise.all(tasks);
+  addChaosLog('HEAL ALL — all instances restored to healthy');
+  addLog('INFO', 'Chaos: all instances healed');
+}
+
+async function runFlood(customCount) {
+  const path  = document.getElementById('flood-path')?.value || '/api/users';
+  const count = customCount || parseInt(document.getElementById('flood-count')?.value || '30');
+  const el    = document.getElementById('flood-result');
+  const method = path.includes('auth') ? 'POST' : 'GET';
+
+  el.style.color = 'var(--muted)';
+  el.textContent = `Flooding ${path} with ${count} requests...`;
+  addChaosLog(`FLOOD ${method} ${path} × ${count}`);
+
+  const r = await postJSON('/_admin/chaos/flood', { path, method, count });
+  if (r) {
+    const lines = Object.entries(r.summary).map(([code, n]) => {
+      const color = String(code).startsWith('2') ? C.GREEN : String(code).startsWith('4') ? C.YELLOW : C.RED;
+      return `<span style="color:${color}">${code}: ${n}</span>`;
+    });
+    el.innerHTML = `Sent ${r.sent} requests to ${r.path}\n${lines.join('  ')}`;
+    addChaosLog(`FLOOD result: ${JSON.stringify(r.summary)}`);
+  } else {
+    el.style.color = C.RED;
+    el.textContent = 'Flood failed — is gateway running?';
+  }
+}
+
+const chaosLogs = [];
+function addChaosLog(msg) {
+  const t = new Date().toTimeString().slice(0,8);
+  chaosLogs.unshift({ t, msg });
+  if (chaosLogs.length > 60) chaosLogs.pop();
+  const el = document.getElementById('chaos-log');
+  if (el) el.innerHTML = chaosLogs.map(l =>
+    `<div class="log-e"><span class="log-time">${l.t}</span><span class="log-CHAOS">CHAOS</span><span class="log-msg">${esc(l.msg)}</span></div>`
+  ).join('');
+}
+
+// ══════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function setText(id, v) { const e=document.getElementById(id); if(e) e.textContent=v; }
+function fmtUptime(s) { const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=Math.floor(s%60); if(h>0)return`${h}h ${m}m`; if(m>0)return`${m}m ${sec}s`; return`${sec}s`; }
+
+function updChart(c, labels, data) { if(!c) return; c.data.labels=labels; c.data.datasets[0].data=data; c.update('none'); }
+
+async function fetchJSON(url) { try{ const r=await fetch(url); return r.ok?r.json():null; }catch{return null;} }
+async function postJSON(url, body) { try{ const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); return r.ok?r.json():null; }catch{return null;} }
+
+// activity log
+const logs = [];
+function addLog(level, msg) {
+  const t = new Date().toTimeString().slice(0,8);
+  logs.unshift({t,level,msg});
+  if(logs.length>80) logs.pop();
+  const el = document.getElementById('log-feed');
+  if(el) el.innerHTML = logs.slice(0,60).map(l=>
+    `<div class="log-e"><span class="log-time">${l.t}</span><span class="log-${l.level}">${l.level}</span><span class="log-msg">${esc(l.msg)}</span></div>`
+  ).join('');
+}
+
+// ══════════════════════════════════════════
+// NAV
+// ══════════════════════════════════════════
+function showPage(btn) {
+  const page = btn.dataset.page;
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('page-'+page)?.classList.add('active');
+  btn.classList.add('active');
+  // resize flow canvas when switching to flow tab
+  if (page === 'flow') setTimeout(() => { flowViz.resize(); }, 50);
+}
+
+// ══════════════════════════════════════════
+// RENDER HELPERS
+// ══════════════════════════════════════════
+function renderBackendHealth(stats) {
+  const el = document.getElementById('backend-health-list');
+  const backends = stats.backends || [];
+  if(!backends.length){el.innerHTML='<div class="empty">No backends</div>';return;}
+  el.innerHTML = backends.map(b=>`
+    <div class="backend-block">
+      <div class="backend-hdr">
+        <span class="backend-hdr-name">${esc(b.name||'')}</span>
+        <span class="algo-badge">${esc(b.algorithm||'round-robin')}</span>
+      </div>
+      ${(b.instances||[]).map(i=>{const up=i.healthy!==false;return`
+        <div class="instance-row">
+          <div class="inst-dot ${up?'up':'down'}"></div>
+          <span class="inst-url">${esc(i.url||'')}</span>
+          <span class="inst-meta">w:${i.weight??1}</span>
+          <span class="inst-badge ${up?'up':'down'}">${up?'UP':'DOWN'}</span>
+        </div>`}).join('')}
+    </div>`).join('');
+}
+
+function renderCB(cb) {
+  const el = document.getElementById('cb-list');
+  if(!cb||!Object.keys(cb).length){el.innerHTML='<div class="empty">No circuit breaker data</div>';return;}
+  el.innerHTML = Object.entries(cb).map(([name,s])=>{
+    const state = s.state||'CLOSED';
+    return`<div class="cb-row">
+      <span class="cb-name">${esc(name)}</span>
+      <span class="cb-meta">fail:${s.failureCount??0}</span>
+      <span class="cb-meta">ok:${s.successCount??0}</span>
+      <span class="cb-state ${state}">${state}</span>
+    </div>`;
+  }).join('');
+}
+
+function renderRoutes(routes) {
+  const tbody = document.getElementById('routes-tbody');
+  if(!routes.length){tbody.innerHTML='<tr><td colspan="7" class="empty">No routes</td></tr>';return;}
+  tbody.innerHTML = routes.map(r=>{
+    const methods=(r.methods||['*']).map(m=>`<span class="method-badge method-${m}">${m}</span>`).join('');
+    const cb=r.circuitBreaker===false?'<span style="color:var(--muted)">Off</span>':'<span style="color:var(--green)">On</span>';
+    return`<tr>
+      <td><span class="mono">${esc(r.id)}</span></td>
+      <td><span class="mono">${esc(r.path)}</span></td>
+      <td><span class="mono">${esc(r.backend)}</span></td>
+      <td>${methods}</td>
+      <td>${r.rateLimit?r.rateLimit+' <span style="color:var(--muted);font-size:10px">req/min</span>':'—'}</td>
+      <td>${cb}</td>
+      <td>${r.timeout?(r.timeout/1000)+'s':'—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+// Default example paths and bodies per route
+const ROUTE_DEFAULTS = {
+  'user-service':  { path: '/api/users',         body: '' },
+  'order-service': { path: '/api/orders',        body: '' },
+  'auth-service':  { path: '/api/auth/login',    body: '{"email":"alice@example.com","password":"password123"}' },
+  'public-api':    { path: '/api/public',        body: '' },
+};
+
+function renderTryIt(routes) {
+  const grid = document.getElementById('try-grid');
+  if(!routes.length){grid.innerHTML='<div class="empty">No routes</div>';return;}
+  grid.innerHTML = routes.map((r,i)=>{
+    const defaults = ROUTE_DEFAULTS[r.id] || { path: r.path, body: '' };
+    const opts=(r.methods||['GET']).map(m=>`<option>${m}</option>`).join('');
+    const hasBody = (r.methods||[]).some(m => ['POST','PUT','PATCH'].includes(m));
+    const bodyField = hasBody
+      ? `<textarea class="try-body" id="tb${i}" rows="2" placeholder='JSON body (optional)'>${esc(defaults.body)}</textarea>`
+      : '';
+    return`<div class="try-item">
+      <label>${esc(r.id)} — <span style="color:var(--muted)">${esc(r.path)}</span>
+        ${r.methods?.length ? `<span style="font-size:10px;margin-left:6px;color:var(--muted)">[${r.methods.join(', ')}]</span>` : ''}
+      </label>
+      <div class="try-row">
+        <select class="try-select" id="tm${i}">${opts}</select>
+        <input  class="try-input"  id="tp${i}" value="${esc(defaults.path)}" />
+        <button class="btn btn-accent" onclick="sendReq(${i})">Send</button>
+      </div>
+      ${bodyField}
+      <div class="try-result" id="tr${i}">Click Send to test this route.</div>
+    </div>`;
+  }).join('');
+}
+
+async function sendReq(i) {
+  const method = document.getElementById(`tm${i}`)?.value||'GET';
+  const path   = document.getElementById(`tp${i}`)?.value||'/';
+  const bodyEl = document.getElementById(`tb${i}`);
+  const bodyRaw = bodyEl?.value?.trim() || '';
+  const el     = document.getElementById(`tr${i}`);
+  el.style.color='var(--muted)'; el.textContent='Sending...';
+
+  const tryLogs = [];
+  tryLogs.push({ t:new Date().toTimeString().slice(0,8), level:'INFO', msg:`→ ${method} ${path}` });
+
+  try {
+    const opts = { method, headers:{'Content-Type':'application/json'} };
+    if (bodyRaw && ['POST','PUT','PATCH'].includes(method)) opts.body = bodyRaw;
+    const r = await fetch(path, opts);
+    const text = await r.text();
+    let pretty; try{pretty=JSON.stringify(JSON.parse(text),null,2);}catch{pretty=text;}
+    el.style.color = r.ok?'var(--green)':'var(--red)';
+    el.textContent = `HTTP ${r.status}\n${pretty}`;
+    tryLogs.push({ t:new Date().toTimeString().slice(0,8), level:r.ok?'INFO':'WARN', msg:`← ${r.status} ${r.statusText}` });
+    const backend=r.headers.get('x-gateway-backend'), rt=r.headers.get('x-response-time');
+    if(backend) tryLogs.push({ t:new Date().toTimeString().slice(0,8), level:'INFO', msg:`Backend: ${backend}${rt?' ('+rt+')':''}` });
+  } catch(e) {
+    el.style.color='var(--red)'; el.textContent=`Error: ${e.message}`;
+    tryLogs.push({ t:new Date().toTimeString().slice(0,8), level:'ERROR', msg:e.message });
+  }
+
+  const tl = document.getElementById('try-log');
+  if(tl) tl.innerHTML = tryLogs.map(l=>`<div class="log-e"><span class="log-time">${l.t}</span><span class="log-${l.level}">${l.level}</span><span class="log-msg">${esc(l.msg)}</span></div>`).join('') + tl.innerHTML;
+}
+
+// ══════════════════════════════════════════
+// MAIN REFRESH LOOP
+// ══════════════════════════════════════════
+let prevTotal = null;
+let currentRps = 0;
+let spawnAccum = 0;
+
+async function refresh() {
+  const [health, stats, cb, metricsJSON] = await Promise.all([
+    fetchJSON('/health'),
+    fetchJSON('/_admin/stats'),
+    fetchJSON('/_admin/circuit-breakers'),
+    fetchJSON('/_admin/metrics/json')
+  ]);
+
+  setText('last-update', `Updated ${new Date().toLocaleTimeString()}`);
+
+  // gateway pill
+  const pill = document.getElementById('gw-pill');
+  if(health){ pill.className='pill online'; pill.innerHTML='<div class="dot pulse"></div>ONLINE'; }
+  else      { pill.className='pill offline'; pill.innerHTML='<div class="dot"></div>OFFLINE'; }
+
+  if(health?.uptime!==undefined) {
+    setText('ov-uptime', fmtUptime(health.uptime));
+    document.getElementById('uptime-bar').style.width = Math.min(health.uptime/86400*100,100)+'%';
+  }
+
+  // ── metrics ────────────────────────────
+  if(metricsJSON) {
+    const { grandTotal, byStatus, byRoute, latencyBuckets, rateLimitHits, rateLimitByRoute, activeConns, memoryMB } = metricsJSON;
+
+    setText('ov-total', grandTotal.toLocaleString());
+    const errors = (byStatus['4xx']||0)+(byStatus['5xx']||0);
+    const errPct = grandTotal>0?((errors/grandTotal)*100).toFixed(1):'0.0';
+    setText('ov-err',  errPct+'%');
+    setText('ov-rl',   rateLimitHits.toLocaleString());
+    setText('ov-mem',  memoryMB);
+
+    // req/s
+    let rps = 0;
+    if(prevTotal!==null) {
+      rps = Math.max(0, grandTotal-prevTotal) / 5;
+      currentRps = rps;
+      const rpsStr = rps.toFixed(1);
+      setText('ov-rps', rpsStr);
+      setText('rps-live', rpsStr+' req/s');
+      setText('flow-rps-label', rpsStr);
+
+      const t=new Date().toLocaleTimeString('en',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+      rpsLabels.push(t); rpsData.push(parseFloat(rpsStr));
+      if(rpsLabels.length>MAX_PTS){rpsLabels.shift();rpsData.shift();}
+      rpsChart?.update('none');
+
+      histLabels.push(t);
+      hist2xx.push(byStatus['2xx']||0); hist4xx.push(byStatus['4xx']||0); hist5xx.push(byStatus['5xx']||0);
+      if(histLabels.length>MAX_PTS){histLabels.shift();hist2xx.shift();hist4xx.shift();hist5xx.shift();}
+      histChart?.update('none');
+    }
+    prevTotal = grandTotal;
+
+    // anomaly detection
+    const anomalies = detectAnomalies(parseFloat(rps.toFixed(1)), parseFloat(errPct), rateLimitHits);
+    renderAnomalies(anomalies);
+
+    // status doughnut
+    if(statusChart) {
+      statusChart.data.datasets[0].data=[byStatus['2xx']||0,byStatus['3xx']||0,byStatus['4xx']||0,byStatus['5xx']||0];
+      statusChart.update('none');
+    }
+
+    // route traffic
+    const fr=Object.entries(byRoute).filter(([r])=>!r.startsWith('/_')&&r!=='/health').sort((a,b)=>b[1]-a[1]).slice(0,8);
+    updChart(routesChart, fr.map(r=>r[0]), fr.map(r=>r[1]));
+
+    // latency
+    const bp=Object.entries(latencyBuckets).map(([le,v])=>[parseFloat(le)*1000,v]).sort((a,b)=>a[0]-b[0]);
+    const latL=bp.map(([ms])=>ms<1?ms.toFixed(1)+'ms':Math.round(ms)+'ms');
+    updChart(latencyChart, latL, bp.map(p=>p[1]));
+    updChart(lat2Chart,    latL, bp.map(p=>p[1]));
+
+    // rate limit
+    const rlp=Object.entries(rateLimitByRoute).sort((a,b)=>b[1]-a[1]);
+    updChart(rl2Chart, rlp.map(r=>r[0]), rlp.map(r=>r[1]));
+
+    // connections
+    const cp=Object.entries(activeConns);
+    updChart(connsChart, cp.map(r=>r[0]), cp.map(r=>r[1]));
+
+    // metrics page cards
+    setText('m-2xx',(byStatus['2xx']||0).toLocaleString());
+    setText('m-3xx',(byStatus['3xx']||0).toLocaleString());
+    setText('m-4xx',(byStatus['4xx']||0).toLocaleString());
+    setText('m-5xx',(byStatus['5xx']||0).toLocaleString());
+    setText('m-rl', rateLimitHits.toLocaleString());
+    setText('m-conns', Object.values(activeConns).reduce((a,b)=>a+b,0));
+
+    // spawn flow particles based on rps
+    spawnAccum += rps;
+    const toSpawn = Math.floor(spawnAccum);
+    spawnAccum -= toSpawn;
+    for(let i=0;i<Math.min(toSpawn,8);i++) flowViz.spawn(rps, byStatus);
+
+    addLog('INFO', `Refreshed — total:${grandTotal} rps:${rps.toFixed(1)} err:${errPct}%`);
+  }
+
+  // ── topology + stats ────────────────────────────
+  if(stats) {
+    renderBackendHealth(stats);
+    renderRoutes(stats.routes||[]);
+    renderTryIt(stats.routes||[]);
+    renderChaosInstances(stats);
+    flowViz.setTopology(stats.backends||[], cb);
+
+    let total=0,healthy=0;
+    (stats.backends||[]).forEach(b=>(b.instances||[]).forEach(i=>{total++;if(i.healthy!==false)healthy++;}));
+    setText('ov-total-sub', `${healthy}/${total} instances healthy`);
+  }
+
+  renderCB(cb);
+}
+
+// ══════════════════════════════════════════
+// SLO RENDERING
+// ══════════════════════════════════════════
+function renderSLO(slo) {
+  if (!slo) return;
+
+  if (slo.insufficientData) {
+    document.getElementById('slo-interpretation').textContent = slo.message;
+    return;
+  }
+
+  // Burn rate hero
+  const br = parseFloat(slo.burnRate.value);
+  const brColor = slo.burnRate.alert === 'critical' ? C.RED
+                : slo.burnRate.alert === 'warning'  ? C.YELLOW
+                : C.GREEN;
+  const burnEl = document.getElementById('slo-burn-value');
+  if (burnEl) { burnEl.textContent = slo.burnRate.value + '×'; burnEl.style.color = brColor; }
+  setText('slo-burn-label', slo.burnRate.alert.toUpperCase());
+  document.getElementById('slo-burn-label').style.color = brColor;
+
+  // Budget
+  const budPct = parseFloat(slo.errorBudget.remainingPct);
+  const budColor = budPct > 50 ? C.GREEN : budPct > 10 ? C.YELLOW : C.RED;
+  const budEl = document.getElementById('slo-budget-pct');
+  if (budEl) { budEl.textContent = slo.errorBudget.remainingPct + '%'; budEl.style.color = budColor; }
+  const budBar = document.getElementById('slo-budget-bar');
+  if (budBar) { budBar.style.width = budPct + '%'; budBar.style.background = budColor; }
+
+  // Exhaustion
+  const exEl = document.getElementById('slo-exhaust');
+  if (exEl) {
+    if (slo.burnRate.hoursToExhaustion) {
+      exEl.textContent = slo.burnRate.hoursToExhaustion;
+      exEl.style.color = parseFloat(slo.burnRate.hoursToExhaustion) < 10 ? C.RED : C.PURPLE;
+    } else {
+      exEl.textContent = '∞';
+      exEl.style.color = C.GREEN;
+    }
+  }
+  setText('slo-exhaust-sub', slo.burnRate.hoursToExhaustion ? 'until budget depleted' : 'no burn detected');
+  setText('slo-interpretation', slo.burnRate.interpretation);
+
+  // SLO cards
+  const cards = document.getElementById('slo-cards');
+  if (cards && slo.slos) {
+    cards.innerHTML = slo.slos.map(s => {
+      const passing = s.passing;
+      return `<div class="slo-card ${passing ? 'passing' : 'failing'}">
+        <div class="slo-name">${esc(s.name)}</div>
+        <div class="slo-desc">${esc(s.description)}</div>
+        <div class="slo-nums">
+          <div class="slo-current" style="color:${passing ? C.GREEN : C.RED}">${esc(s.current)}${esc(s.unit||'')}</div>
+          <div class="slo-target">target: ${s.unit === 'ms' ? '< ' : '≥ '}${s.target}${esc(s.unit||'')}</div>
+        </div>
+        ${s.windows ? `<div style="font-size:10px;color:var(--muted)">${Object.entries(s.windows).map(([w,v])=>`<span style="margin-right:10px">${w}: <b style="color:var(--text)">${v}</b></span>`).join('')}</div>` : ''}
+        <div style="margin-top:8px"><span class="slo-badge ${passing?'pass':'fail'}">${passing ? '✓ PASSING' : '✗ BREACHED'}</span></div>
+      </div>`;
+    }).join('');
+  }
+
+  // Time-window table
+  const tbody = document.getElementById('slo-windows-tbody');
+  if (tbody && slo.windows) {
+    const SLO_TARGET = 99.9;
+    tbody.innerHTML = Object.entries(slo.windows).map(([w, d]) => {
+      const avail = d.total > 0 ? ((d.total - d.errors) / d.total * 100).toFixed(4) : '100.0000';
+      const ok = parseFloat(avail) >= SLO_TARGET;
+      return `<tr>
+        <td><span class="mono">${w}</span></td>
+        <td>${d.total.toLocaleString()}</td>
+        <td style="color:${d.errors > 0 ? C.RED : C.MUTED}">${d.errors}</td>
+        <td style="color:${ok ? C.GREEN : C.RED};font-weight:600">${avail}%</td>
+        <td><span class="slo-badge ${ok?'pass':'fail'}">${ok ? 'OK' : 'BREACH'}</span></td>
+      </tr>`;
+    }).join('');
+  }
+}
+
+// ══════════════════════════════════════════
+// DISTRIBUTED TRACES RENDERING
+// ══════════════════════════════════════════
+let selectedTraceId = null;
+
+function renderTraces(data) {
+  if (!data) return;
+  const { traces, stats } = data;
+
+  setText('tr-count', (stats.count || 0).toString());
+  setText('tr-p99',   (stats.p99  || 0).toString());
+  setText('tr-p95',   (stats.p95  || 0).toString());
+  setText('tr-err',   (stats.errorRate || 0).toFixed(1) + '%');
+
+  const list = document.getElementById('trace-list');
+  if (!list || !traces.length) {
+    if (list) list.innerHTML = '<div class="empty">No traces yet — send requests through the gateway</div>';
+    return;
+  }
+
+  setText('trace-count-badge', traces.length + ' traces');
+
+  list.innerHTML = traces.map(t => {
+    const dur = t.duration != null ? t.duration + 'ms' : '—';
+    const methodColor = { GET:C.BLUE, POST:C.GREEN, PUT:C.YELLOW, DELETE:C.RED }[t.method] || C.MUTED;
+    const selected = t.traceId === selectedTraceId ? ' selected' : '';
+    return `<div class="trace-row${selected}" onclick="selectTrace('${t.traceId}', this)" data-trace='${esc(JSON.stringify(t))}'>
+      <div class="trace-status ${t.status || 'ok'}"></div>
+      <span class="trace-method" style="color:${methodColor}">${esc(t.method)}</span>
+      <span class="trace-path">${esc(t.path)}</span>
+      <span class="trace-dur">${dur}</span>
+      <span class="trace-code" style="color:${t.statusCode >= 500 ? C.RED : t.statusCode >= 400 ? C.YELLOW : C.GREEN}">${t.statusCode || '—'}</span>
+    </div>`;
+  }).join('');
+}
+
+function selectTrace(traceId, el) {
+  selectedTraceId = traceId;
+  document.querySelectorAll('.trace-row').forEach(r => r.classList.remove('selected'));
+  el.classList.add('selected');
+
+  const raw = el.dataset.trace;
+  if (!raw) return;
+  try { renderWaterfall(JSON.parse(raw)); } catch(_) {}
+}
+
+function renderWaterfall(trace) {
+  setText('waterfall-trace-id', trace.traceId);
+  const container = document.getElementById('waterfall-content');
+  if (!container) return;
+
+  const dur = trace.duration || 1;
+  const spans = trace.spans || [];
+
+  const SPAN_COLORS = {
+    route_match:  C.CYAN,
+    adaptive_rl:  C.PURPLE,
+    rate_limit:   C.YELLOW,
+    load_balance: C.BLUE,
+    proxy:        C.GREEN,
+  };
+
+  container.innerHTML = `
+    <div style="padding:12px">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:12px">
+        ${esc(trace.method)} ${esc(trace.path)} &nbsp;·&nbsp;
+        <span style="color:${trace.statusCode >= 500 ? C.RED : C.GREEN}">${trace.statusCode}</span> &nbsp;·&nbsp;
+        Total: <b style="color:var(--text)">${dur}ms</b> &nbsp;·&nbsp;
+        Trace ID: <span style="font-family:monospace">${esc(trace.traceId)}</span>
+      </div>
+
+      <!-- timeline ruler -->
+      <div class="wf-header">
+        <div style="font-size:10px;color:var(--muted);text-align:right;padding-right:8px">Span</div>
+        <div style="position:relative;height:16px">
+          ${[0,25,50,75,100].map(p => `<span style="position:absolute;left:${p}%;font-size:9px;color:var(--muted);transform:translateX(-50%)">${Math.round(dur*p/100)}ms</span>`).join('')}
+        </div>
+      </div>
+
+      <!-- spans -->
+      ${spans.map(s => {
+        const left  = Math.min(100, (s.relativeStart / dur) * 100);
+        const width = Math.max(0.5, Math.min(100 - left, ((s.duration || 1) / dur) * 100));
+        const color = SPAN_COLORS[s.name] || C.ACCENT;
+        const statusClass = s.status === 'ok' ? 'ok' : s.status === 'error' ? 'error' : s.status;
+        return `<div class="wf-row">
+          <div class="wf-label">${esc(s.name)}</div>
+          <div class="wf-track">
+            <div class="wf-bar ${statusClass}" style="left:${left}%;width:${width}%;background:${color}33;color:${color}">
+              ${s.duration != null ? s.duration + 'ms' : ''}
+            </div>
+          </div>
+        </div>
+        <div style="grid-column:2;font-size:10px;color:var(--muted);padding-left:4px;margin-bottom:6px">
+          ${Object.entries(s.meta || {}).filter(([k,v])=>v!=null).map(([k,v])=>`<span style="margin-right:8px">${esc(k)}=<b style="color:var(--text)">${esc(String(v))}</b></span>`).join('')}
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+// ══════════════════════════════════════════
+// ADAPTIVE RATE LIMITER RENDERING
+// ══════════════════════════════════════════
+const arlCharts = {};
+
+function renderAdaptive(data) {
+  if (!data) return;
+  const { backends, changeLog, config } = data;
+
+  if (config) setText('arl-target', config.targetP99Ms + 'ms');
+
+  // Backend multiplier cards + charts
+  const backendsEl = document.getElementById('arl-backends');
+  const chartsEl   = document.getElementById('arl-charts');
+
+  if (!Object.keys(backends).length) {
+    backendsEl.innerHTML = '<div class="empty">No backend data yet — send requests to see adaptive control in action</div>';
+    chartsEl.innerHTML = '';
+    return;
+  }
+
+  backendsEl.innerHTML = Object.entries(backends).map(([name, b]) => `
+    <div class="arl-card">
+      <div class="arl-name">${esc(name)}</div>
+      <div style="text-align:center;margin:10px 0">
+        <div style="font-size:42px;font-weight:800;color:${b.status==='ok'?C.GREEN:b.status==='warning'?C.YELLOW:C.RED};font-variant-numeric:tabular-nums">${b.pct}%</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">traffic passing through</div>
+      </div>
+      <div style="text-align:center;margin-bottom:10px">
+        <span class="arl-status ${b.status}">${b.status.toUpperCase()}${b.shedding ? ` — shedding ${100-b.pct}%` : ''}</span>
+      </div>
+      <div style="background:var(--surface);border-radius:6px;padding:8px;font-size:11px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+          <span style="color:var(--muted)">EWMA P99</span>
+          <span style="color:${b.ewmaP99 > 150 ? C.RED : b.ewmaP99 > 80 ? C.YELLOW : C.GREEN};font-weight:600">${b.ewmaP99}ms</span>
+        </div>
+        <div style="display:flex;justify-content:space-between">
+          <span style="color:var(--muted)">Multiplier</span>
+          <span style="font-family:monospace;font-weight:600">${b.multiplier.toFixed(2)}</span>
+        </div>
+      </div>
+      <div style="margin-top:8px;height:5px;background:var(--s2);border-radius:3px;overflow:hidden">
+        <div style="height:100%;width:${b.pct}%;background:${b.status==='ok'?C.GREEN:b.status==='warning'?C.YELLOW:C.RED};border-radius:3px;transition:width .5s ease"></div>
+      </div>
+      <div style="height:80px;margin-top:10px"><canvas id="arl-chart-${esc(name)}"></canvas></div>
+    </div>`).join('');
+
+  // Draw sparkline for each backend
+  Object.entries(backends).forEach(([name, b]) => {
+    const canvasId = `arl-chart-${name}`;
+    if (arlCharts[name]) {
+      arlCharts[name].data.labels = b.history.map(h => '');
+      arlCharts[name].data.datasets[0].data = b.history.map(h => h.multiplier * 100);
+      arlCharts[name].update('none');
+    } else {
+      const ctx = document.getElementById(canvasId)?.getContext('2d');
+      if (ctx) {
+        arlCharts[name] = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: b.history.map(() => ''),
+            datasets: [{
+              data: b.history.map(h => h.multiplier * 100),
+              borderColor: C.ACCENT, backgroundColor: 'rgba(99,102,241,.1)',
+              tension: .4, fill: true, pointRadius: 0, borderWidth: 1.5
+            }]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { x: { display: false }, y: { display: false, min: 0, max: 100 } }
+          }
+        });
+      }
+    }
+  });
+
+  // Change log
+  const logEl = document.getElementById('arl-changelog');
+  if (logEl && changeLog.length) {
+    logEl.innerHTML = changeLog.map(c => {
+      const color = c.action === 'TIGHTEN' ? C.RED : C.GREEN;
+      const t = new Date(c.ts).toLocaleTimeString();
+      return `<div class="log-e">
+        <span class="log-time">${t}</span>
+        <span style="color:${color};min-width:60px;flex-shrink:0">${c.action}</span>
+        <span class="log-msg">${esc(c.backend)}: ${Math.round(c.from*100)}% → ${Math.round(c.to*100)}%  (EWMA P99=${c.ewmaP99}ms)</span>
+      </div>`;
+    }).join('');
+  } else if (logEl) {
+    logEl.innerHTML = '<div class="empty">No multiplier changes yet — changes appear when P99 crosses thresholds</div>';
+  }
+}
+
+// ══════════════════════════════════════════
+// EXTENDED REFRESH — fetch new endpoints
+// ══════════════════════════════════════════
+async function refreshNovelFeatures() {
+  const [slo, tracesData, adaptive] = await Promise.all([
+    fetchJSON('/_admin/slo'),
+    fetchJSON('/_admin/traces?limit=60'),
+    fetchJSON('/_admin/adaptive-limits')
+  ]);
+
+  renderSLO(slo);
+  renderTraces(tracesData);
+  renderAdaptive(adaptive);
+}
+
+// Boot
+addLog('INFO', 'Dashboard initialised — connecting to gateway...');
+refresh();
+refreshNovelFeatures();
+setInterval(refresh, 5000);
+setInterval(refreshNovelFeatures, 5000);
+</script>
+</body>
+</html>
