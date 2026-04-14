@@ -105,6 +105,16 @@ cd docker && docker-compose up
 | Prometheus UI       | http://localhost:9091 |
 | Grafana             | http://localhost:3000 (admin/admin) |
 
+## Fern OS / Single-Container Deploy
+
+This repo can also run as a single Docker service for demo deployment platforms:
+
+- The gateway and all mock backend services run inside one container via `npm start`
+- Redis is optional; when it is unavailable and `REDIS_OPTIONAL=true`, rate limiting falls back to in-memory state
+- Use `docker/Dockerfile`, expose port `8080`, and health-check `/health`
+
+Deployment steps are documented in `docs/FERNOS_DEPLOY.md`.
+
 ---
 
 ## Project Structure
